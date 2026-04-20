@@ -1,0 +1,21 @@
+{
+  "appId": "com.krc.pmapp",
+  "appName": "KRC PM",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "scheme": "KRC PM"
+  },
+  "plugins": {
+    "Camera": {
+      "presentationStyle": "fullScreen"
+    },
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "backgroundColor": "#1f2937"
+    }
+  }
+}
