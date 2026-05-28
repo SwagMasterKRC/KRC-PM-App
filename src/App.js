@@ -670,9 +670,7 @@ if ('serviceWorker' in navigator) {
 function ReferenceDocs({ onClose }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(null);
-  const fileRef = useRef();
 
   const loadDocs = async () => {
     setLoading(true);
@@ -694,39 +692,7 @@ function ReferenceDocs({ onClose }) {
 
   useEffect(() => { loadDocs(); }, []);
 
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/reference-docs/${encodeURIComponent(file.name)}`, {
-        method: 'POST',
-        headers: {
-          "apikey": SUPABASE_KEY,
-          "Authorization": `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": file.type,
-          "x-upsert": "true",
-        },
-        body: file,
-      });
-      if (res.ok) await loadDocs();
-    } catch(e) { console.error(e); }
-    setUploading(false);
-    fileRef.current.value = "";
-  };
 
-  const handleDelete = async (name) => {
-    if (!window.confirm(`Delete "${name}"?`)) return;
-    setDeleting(name);
-    try {
-      await fetch(`${SUPABASE_URL}/storage/v1/object/reference-docs/${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
-      });
-      await loadDocs();
-    } catch(e) { console.error(e); }
-    setDeleting(null);
-  };
 
   const getUrl = (name) => `${SUPABASE_URL}/storage/v1/object/public/reference-docs/${encodeURIComponent(name)}`;
 
@@ -749,23 +715,7 @@ function ReferenceDocs({ onClose }) {
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "white", borderRadius: "8px", width: "32px", height: "32px", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
 
-        {/* Upload button */}
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc" }}>
-          <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.docx" style={{ display: "none" }} onChange={handleUpload} />
-          <button
-            onClick={() => fileRef.current.click()}
-            disabled={uploading}
-            style={{
-              width: "100%", padding: "10px", background: uploading ? "#6b7280" : "#3b82f6",
-              color: "white", border: "none", borderRadius: "8px",
-              fontFamily: "'Courier New', monospace", fontSize: "11px", fontWeight: 700,
-              cursor: uploading ? "not-allowed" : "pointer", letterSpacing: "0.06em",
-            }}
-          >{uploading ? "⏳ UPLOADING..." : "⬆ UPLOAD REFERENCE DOCUMENT"}</button>
-          <div style={{ textAlign: "center", marginTop: "6px", fontSize: "10px", color: "#9ca3af", fontFamily: "'Courier New', monospace" }}>
-            PDF, PNG, JPG, DOCX supported
-          </div>
-        </div>
+
 
         {/* Document list */}
         <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
@@ -792,18 +742,11 @@ function ReferenceDocs({ onClose }) {
                       {doc.metadata?.size && <div style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#9ca3af" }}>{formatSize(doc.metadata.size)}</div>}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                    <a href={getUrl(doc.name)} target="_blank" rel="noopener noreferrer" style={{
-                      padding: "6px 12px", background: "#0f172a", color: "white", borderRadius: "6px",
-                      fontFamily: "'Courier New', monospace", fontSize: "10px", fontWeight: 700,
-                      textDecoration: "none", letterSpacing: "0.05em",
-                    }}>OPEN</a>
-                    <button onClick={() => handleDelete(doc.name)} disabled={deleting === doc.name} style={{
-                      padding: "6px 10px", background: "#fef2f2", color: "#ef4444", border: "1px solid #fca5a5",
-                      borderRadius: "6px", fontFamily: "'Courier New', monospace", fontSize: "10px",
-                      fontWeight: 700, cursor: "pointer",
-                    }}>{deleting === doc.name ? "..." : "✕"}</button>
-                  </div>
+                  <a href={getUrl(doc.name)} target="_blank" rel="noopener noreferrer" style={{
+                    padding: "6px 14px", background: "#0f172a", color: "white", borderRadius: "6px",
+                    fontFamily: "'Courier New', monospace", fontSize: "10px", fontWeight: 700,
+                    textDecoration: "none", letterSpacing: "0.05em", flexShrink: 0,
+                  }}>OPEN</a>
                 </div>
               ))}
             </div>
