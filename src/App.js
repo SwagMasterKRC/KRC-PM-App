@@ -666,6 +666,154 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// ── Reference Documents ───────────────────────────────────────────────────────
+function ReferenceDocs({ onClose }) {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const fileRef = useRef();
+
+  const loadDocs = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/reference-docs`, {
+        method: 'POST',
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prefix: "", limit: 100, sortBy: { column: "created_at", order: "desc" } }),
+      });
+      const data = await res.json();
+      setDocs((data || []).filter(d => d.name && d.name !== '.emptyFolderPlaceholder'));
+    } catch(e) { console.error(e); }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadDocs(); }, []);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/reference-docs/${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": file.type,
+          "x-upsert": "true",
+        },
+        body: file,
+      });
+      if (res.ok) await loadDocs();
+    } catch(e) { console.error(e); }
+    setUploading(false);
+    fileRef.current.value = "";
+  };
+
+  const handleDelete = async (name) => {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    setDeleting(name);
+    try {
+      await fetch(`${SUPABASE_URL}/storage/v1/object/reference-docs/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+      });
+      await loadDocs();
+    } catch(e) { console.error(e); }
+    setDeleting(null);
+  };
+
+  const getUrl = (name) => `${SUPABASE_URL}/storage/v1/object/public/reference-docs/${encodeURIComponent(name)}`;
+
+  const formatSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+    return `${(bytes/1024/1024).toFixed(1)} MB`;
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "white", borderRadius: "16px", width: "100%", maxWidth: "600px", maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#0f172a,#1e3a5f)", padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#93c5fd", letterSpacing: "0.1em", marginBottom: "2px" }}>KURTIN ROBOTICS</div>
+            <div style={{ fontFamily: "Georgia, serif", fontSize: "17px", fontWeight: 700, color: "white" }}>📚 Reference Documents</div>
+          </div>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "white", borderRadius: "8px", width: "32px", height: "32px", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Upload button */}
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", background: "#f8fafc" }}>
+          <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.docx" style={{ display: "none" }} onChange={handleUpload} />
+          <button
+            onClick={() => fileRef.current.click()}
+            disabled={uploading}
+            style={{
+              width: "100%", padding: "10px", background: uploading ? "#6b7280" : "#3b82f6",
+              color: "white", border: "none", borderRadius: "8px",
+              fontFamily: "'Courier New', monospace", fontSize: "11px", fontWeight: 700,
+              cursor: uploading ? "not-allowed" : "pointer", letterSpacing: "0.06em",
+            }}
+          >{uploading ? "⏳ UPLOADING..." : "⬆ UPLOAD REFERENCE DOCUMENT"}</button>
+          <div style={{ textAlign: "center", marginTop: "6px", fontSize: "10px", color: "#9ca3af", fontFamily: "'Courier New', monospace" }}>
+            PDF, PNG, JPG, DOCX supported
+          </div>
+        </div>
+
+        {/* Document list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px" }}>
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af", fontFamily: "'Courier New', monospace" }}>LOADING...</div>
+          ) : docs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#9ca3af", fontFamily: "'Courier New', monospace" }}>
+              NO DOCUMENTS YET — UPLOAD ONE ABOVE
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {docs.map(doc => (
+                <div key={doc.name} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  background: "#f8fafc", borderRadius: "10px", padding: "12px 14px",
+                  border: "1px solid #e5e7eb", gap: "10px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "22px", flexShrink: 0 }}>
+                      {doc.name.endsWith('.pdf') ? '📄' : doc.name.match(/\.(png|jpg|jpeg)$/i) ? '🖼' : '📎'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: "Georgia, serif", fontSize: "13px", fontWeight: 700, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                      {doc.metadata?.size && <div style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#9ca3af" }}>{formatSize(doc.metadata.size)}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                    <a href={getUrl(doc.name)} target="_blank" rel="noopener noreferrer" style={{
+                      padding: "6px 12px", background: "#0f172a", color: "white", borderRadius: "6px",
+                      fontFamily: "'Courier New', monospace", fontSize: "10px", fontWeight: 700,
+                      textDecoration: "none", letterSpacing: "0.05em",
+                    }}>OPEN</a>
+                    <button onClick={() => handleDelete(doc.name)} disabled={deleting === doc.name} style={{
+                      padding: "6px 10px", background: "#fef2f2", color: "#ef4444", border: "1px solid #fca5a5",
+                      borderRadius: "6px", fontFamily: "'Courier New', monospace", fontSize: "10px",
+                      fontWeight: 700, cursor: "pointer",
+                    }}>{deleting === doc.name ? "..." : "✕"}</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard: pick or create a report ──────────────────────────────────────
 function Dashboard({ onOpen, onCreate }) {
   const [reports, setReports] = useState([]);
@@ -676,6 +824,7 @@ function Dashboard({ onOpen, onCreate }) {
   const [newCustomer, setNewCustomer] = useState("");
   const [tab, setTab] = useState("inprogress");
   const [saving, setSaving] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -837,6 +986,7 @@ function Dashboard({ onOpen, onCreate }) {
           </div>
         )}
       </div>
+      {showDocs && <ReferenceDocs onClose={() => setShowDocs(false)} />}
     </div>
   );
 }
