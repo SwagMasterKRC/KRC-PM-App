@@ -608,6 +608,60 @@ const uploadPhoto = async (file, reportId, sectionId) => {
   return `${SUPABASE_URL}/storage/v1/object/public/pm-photos/${path}`;
 };
 
+// ── Offline support ──────────────────────────────────────────────────────────
+const OFFLINE_QUEUE_KEY = 'krc_pm_offline_queue';
+const OFFLINE_DATA_KEY = 'krc_pm_offline_data';
+
+const isOnline = () => navigator.onLine;
+
+// Save report data locally for offline access
+const saveLocally = (reportId, info, sectionData) => {
+  try {
+    const local = JSON.parse(localStorage.getItem(OFFLINE_DATA_KEY) || '{}');
+    local[reportId] = { info, sectionData, savedAt: new Date().toISOString() };
+    localStorage.setItem(OFFLINE_DATA_KEY, JSON.stringify(local));
+  } catch(e) { console.error('Local save failed:', e); }
+};
+
+// Queue a save for when we come back online
+const queueOfflineSave = (reportId, info, sectionData) => {
+  saveLocally(reportId, info, sectionData);
+  try {
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+    // Replace any existing entry for this report
+    const filtered = queue.filter(q => q.reportId !== reportId);
+    filtered.push({ reportId, info, sectionData, queuedAt: new Date().toISOString() });
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
+  } catch(e) { console.error('Queue failed:', e); }
+};
+
+// Flush offline queue to Supabase
+const flushOfflineQueue = async () => {
+  try {
+    const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+    if (queue.length === 0) return 0;
+    let synced = 0;
+    for (const item of queue) {
+      try {
+        await sbFetch(`/pm_reports?id=eq.${item.reportId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ info: item.info, section_data: item.sectionData, updated_at: new Date().toISOString() }),
+        });
+        synced++;
+      } catch(e) { console.error('Flush item failed:', e); }
+    }
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify([]));
+    return synced;
+  } catch(e) { return 0; }
+};
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.log('SW reg failed:', e));
+  });
+}
+
 // ── Dashboard: pick or create a report ──────────────────────────────────────
 function Dashboard({ onOpen, onCreate }) {
   const [reports, setReports] = useState([]);
@@ -793,8 +847,35 @@ export default function App() {
   const [previewHtml, setPreviewHtml] = useState(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [online, setOnline] = useState(navigator.onLine);
+  const [pendingSync, setPendingSync] = useState(false);
   const saveTimer = useRef(null);
   const pollTimer = useRef(null);
+
+  // Track online/offline and auto-sync when back online
+  useEffect(() => {
+    const handleOnline = async () => {
+      setOnline(true);
+      const count = await flushOfflineQueue();
+      if (count > 0) {
+        setPendingSync(false);
+        setLastSaved(new Date());
+      }
+    };
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    // Also listen for SW sync messages
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', async (e) => {
+        if (e.data?.type === 'SYNC_NOW') await flushOfflineQueue();
+      });
+    }
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Live polling — re-fetch report every 8 seconds
   const startPolling = useCallback((reportId) => {
@@ -844,18 +925,32 @@ export default function App() {
     openReport(report);
   };
 
-  // Auto-save to Supabase 2s after last change
+  // Auto-save to Supabase 2s after last change (offline-aware)
   const scheduleSave = useCallback((newInfo, newSectionData, reportId) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
-      try {
-        await sbFetch(`/pm_reports?id=eq.${reportId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ info: newInfo, section_data: newSectionData, updated_at: new Date().toISOString() }),
-        });
+      // Always save locally first
+      saveLocally(reportId, newInfo, newSectionData);
+      if (navigator.onLine) {
+        try {
+          await sbFetch(`/pm_reports?id=eq.${reportId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ info: newInfo, section_data: newSectionData, updated_at: new Date().toISOString() }),
+          });
+          setLastSaved(new Date());
+          setPendingSync(false);
+        } catch(e) {
+          console.error("Save failed, queuing for later:", e);
+          queueOfflineSave(reportId, newInfo, newSectionData);
+          setPendingSync(true);
+        }
+      } else {
+        // Offline - queue for later
+        queueOfflineSave(reportId, newInfo, newSectionData);
+        setPendingSync(true);
         setLastSaved(new Date());
-      } catch(e) { console.error("Save failed:", e); }
+      }
       setSaving(false);
     }, 2000);
   }, []);
@@ -903,9 +998,17 @@ export default function App() {
           fontSize: "10px", cursor: "pointer", letterSpacing: "0.05em", padding: 0,
         }}>← ALL REPORTS</button>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {!online && (
+            <span style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#f87171", background: "rgba(239,68,68,0.15)", padding: "3px 8px", borderRadius: "4px", fontWeight: 700 }}>
+              📵 OFFLINE — SAVING LOCALLY
+            </span>
+          )}
+          {online && pendingSync && (
+            <span style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#fbbf24" }}>⏳ SYNCING...</span>
+          )}
           {saving ? (
             <span style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#fbbf24" }}>⏳ SAVING...</span>
-          ) : lastSaved ? (
+          ) : lastSaved && online && !pendingSync ? (
             <span style={{ fontFamily: "'Courier New', monospace", fontSize: "10px", color: "#4ade80" }}>✓ SAVED {lastSaved.toLocaleTimeString()}</span>
           ) : null}
           <button onClick={manualRefresh} style={{
