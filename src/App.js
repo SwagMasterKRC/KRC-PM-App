@@ -70,6 +70,9 @@ const SECTIONS = [
   { id: "teach_pendant_cable_after", label: "Teach Pendant Cable", phase: "After Inspection" },
   { id: "teach_pendant_before", label: "Teach Pendant", phase: "Before Inspection" },
   { id: "teach_pendant_after", label: "Teach Pendant", phase: "After Inspection" },
+  { id: "robot_alarms_before", label: "Robot Alarms", phase: "Before Inspection" },
+  { id: "robot_alarms_after", label: "Robot Alarms", phase: "After Inspection" },
+  { id: "follow_up_work", label: "Follow Up Work", phase: "Follow Up" },
 ];
 
 const STATUS_CONFIG = {
@@ -78,10 +81,11 @@ const STATUS_CONFIG = {
   bad: { label: "Bad", color: "#ef4444", bg: "#fef2f2", border: "#fca5a5" },
 };
 
-const PHASES = ["Before Inspection", "After Inspection"];
+const PHASES = ["Before Inspection", "After Inspection", "Follow Up"];
 const PHASE_COLORS = {
   "Before Inspection": { bg: "#eff6ff", accent: "#3b82f6", text: "#1d4ed8" },
   "After Inspection": { bg: "#f0fdf4", accent: "#22c55e", text: "#15803d" },
+  "Follow Up": { bg: "#fff7ed", accent: "#f97316", text: "#c2410c" },
 };
 
 function SectionCard({ section, data, onChange, reportId }) {
