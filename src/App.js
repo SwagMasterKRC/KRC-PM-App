@@ -889,11 +889,18 @@ function Dashboard({ onOpen, onCreate }) {
             {tabBtn("inprogress", "IN PROGRESS", reports.length)}
             {tabBtn("completed", "COMPLETED", completed.length)}
           </div>
-          <button onClick={() => setCreating(true)} style={{
-            padding: "8px 18px", background: "#3b82f6", color: "white", border: "none",
-            borderRadius: "8px", fontFamily: "'Courier New', monospace", fontSize: "11px",
-            fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em",
-          }}>+ NEW REPORT</button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={() => setShowDocs(true)} style={{
+              padding: "8px 14px", background: "rgba(255,255,255,0.1)", color: "white", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: "8px", fontFamily: "'Courier New', monospace", fontSize: "11px",
+              fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em",
+            }}>📚 REFERENCE DOCS</button>
+            <button onClick={() => setCreating(true)} style={{
+              padding: "8px 18px", background: "#3b82f6", color: "white", border: "none",
+              borderRadius: "8px", fontFamily: "'Courier New', monospace", fontSize: "11px",
+              fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em",
+            }}>+ NEW REPORT</button>
+          </div>
         </div>
       </div>
 
