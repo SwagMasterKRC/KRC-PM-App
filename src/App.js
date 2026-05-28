@@ -1098,8 +1098,10 @@ export default function App() {
       {/* Save status bar */}
       <div style={{ background: "#0f172a", padding: "6px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <button onClick={() => { stopPolling(); setScreen("dashboard"); }} style={{
-          background: "none", border: "none", color: "#93c5fd", fontFamily: "'Courier New', monospace",
-          fontSize: "10px", cursor: "pointer", letterSpacing: "0.05em", padding: 0,
+          background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
+          color: "white", fontFamily: "'Courier New', monospace", fontSize: "12px",
+          fontWeight: 700, cursor: "pointer", letterSpacing: "0.06em",
+          padding: "7px 14px", borderRadius: "8px",
         }}>← ALL REPORTS</button>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {!online && (
