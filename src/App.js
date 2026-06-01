@@ -981,23 +981,28 @@ export default function App() {
     };
   }, []);
 
-  // Live polling — re-fetch report every 8 seconds
+  // Only poll when user hasn't touched anything for 30 seconds
+  const lastInteraction = useRef(Date.now());
+  const isSaving = useRef(false);
+
+  const recordInteraction = useCallback(() => {
+    lastInteraction.current = Date.now();
+  }, []);
+
   const startPolling = useCallback((reportId) => {
     if (pollTimer.current) clearInterval(pollTimer.current);
     pollTimer.current = setInterval(async () => {
+      // Don't refresh if user interacted in the last 30 seconds or is currently saving
+      const idleTime = Date.now() - lastInteraction.current;
+      if (idleTime < 30000 || isSaving.current) return;
       try {
         const data = await sbFetch(`/pm_reports?id=eq.${reportId}&select=info,section_data,updated_at`);
         if (data && data[0]) {
-          setSectionData(prev => {
-            // Merge: keep local unsaved changes, update everything else
-            const remote = data[0].section_data || {};
-            const merged = { ...remote };
-            return merged;
-          });
+          setSectionData(data[0].section_data || {});
           setInfo(data[0].info || {});
         }
       } catch(e) { console.error("Poll failed:", e); }
-    }, 8000);
+    }, 15000);
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -1029,12 +1034,13 @@ export default function App() {
     openReport(report);
   };
 
-  // Auto-save to Supabase 2s after last change (offline-aware)
+  // Save only when something changed, debounced 2s
   const scheduleSave = useCallback((newInfo, newSectionData, reportId) => {
+    recordInteraction();
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      isSaving.current = true;
       setSaving(true);
-      // Always save locally first
       saveLocally(reportId, newInfo, newSectionData);
       if (navigator.onLine) {
         try {
@@ -1050,27 +1056,29 @@ export default function App() {
           setPendingSync(true);
         }
       } else {
-        // Offline - queue for later
         queueOfflineSave(reportId, newInfo, newSectionData);
         setPendingSync(true);
         setLastSaved(new Date());
       }
       setSaving(false);
+      isSaving.current = false;
     }, 2000);
-  }, []);
+  }, [recordInteraction]);
 
   const handleInfoChange = useCallback((newInfo) => {
+    recordInteraction();
     setInfo(newInfo);
     if (currentReport) scheduleSave(newInfo, sectionData, currentReport.id);
-  }, [currentReport, sectionData, scheduleSave]);
+  }, [currentReport, sectionData, scheduleSave, recordInteraction]);
 
   const handleChange = useCallback((id, data) => {
+    recordInteraction();
     setSectionData(prev => {
       const updated = { ...prev, [id]: data };
       if (currentReport) scheduleSave(info, updated, currentReport.id);
       return updated;
     });
-  }, [currentReport, info, scheduleSave]);
+  }, [currentReport, info, scheduleSave, recordInteraction]);
 
   const closeOut = async () => {
     if (!currentReport) return;
